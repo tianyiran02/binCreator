@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <ctime>
+#include <process.h>
 
 using namespace std;
 
@@ -65,14 +66,20 @@ cout << "\n\nInput information." << endl;
 
 // input flash size
 std::cout << "\nInput bin file size:\n - For example, 1MB size flash (0x00000 - 0xFFFFF), type in: FFFFF\n";
-std::getline (std::cin, binlength);
+// solid information
+// std::getline (std::cin, binlength);
+binlength = "7FFFFF"; // 8M flash
 
 std::cout << "\nInput time storing address:\n";
-getline(cin,timeaddr);
+// solid information
+// getline(cin,timeaddr);
+timeaddr = "301001";
 
 // input image starting address
 std::cout << "\nInput bin file starting address:\n - For example, 2 files in total, 1 file start at 0x002000, another tart at 0x004000. Then type in 2000;4000;\n";
-std::getline (std::cin , binfileAddr);
+// solid information
+// std::getline (std::cin , binfileAddr);
+binfileAddr = "401000;502000;"; // image1: STM32, image2:CC2530
 
 // input image file name
 // std::cout << "\nInput iamge files name:\nFor example, files name image1.bin and image2.bin, type in image1.bin;image2.bin;\n";
@@ -137,19 +144,22 @@ memset(flashblock,0xff,temp);
 outputFile.seekp(0, ios::beg);
 outputFile.write(flashblock, temp);
 
-
 // save the time info
 outputFile.seekp(timeaddr_hex);
 char buffer[8];
-buffer[0] = t & 0xff;
-buffer[1] = (t & 0xff00) >> 8;
-buffer[2] = (t & 0xff0000) >> 16;
-buffer[3] = (t & 0xff000000) >> 24;
-buffer[4] = (t & 0xff00000000) >> 32;
-buffer[5] = (t & 0xff0000000000) >> 40;
-buffer[6] = (t & 0xff000000000000) >> 48;
-buffer[7] = (t & 0xff00000000000000) >> 56;
+buffer[0] = (t & 0xff00000000000000) >> 56;
+buffer[1] = (t & 0xff000000000000) >> 48;
+buffer[2] = (t & 0xff0000000000) >> 40;
+buffer[3] = (t & 0xff00000000) >> 32;
+buffer[4] = (t & 0xff000000) >> 24;
+buffer[5] = (t & 0xff0000) >> 16;
+buffer[6] = (t & 0xff00) >> 8;
+buffer[7] = t & 0xff;
 outputFile.write(buffer, 8);
+
+outputFile.seekp(timeaddr_hex - 1);
+buffer[0] = 0x01;
+outputFile.write(buffer,1);
 
 cout << "\n\n==================================================" << endl;
 cout << "Process Result" << endl;
@@ -186,13 +196,21 @@ if(temp < fileNumber)
     sizetemp = fin.tellg();
 
     cout << "\n - Image file size: 0x" << std::hex << sizetemp << " written!";
-    cout << "\n - Image length written in address: 0x" << std::hex << (addrtable[temp] - 4) << endl;
+    cout << "\n - Image length written in address: 0x" << std::hex << (addrtable[temp] - 6) << endl;
 
-    outputFile.seekp(addrtable[temp] - 4);
+    outputFile.seekp(addrtable[temp] - 6);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0xff000000) >> 32);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0x00ff0000) >> 16);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0x0000ff00) >> 8);
     outputFile << std::hex <<(unsigned char)(sizetemp & 0x000000ff);
+
+    // Now, write the version number
+    // It is STM32 version number
+    fin.seekg(0x2000);
+    outputFile.seekp(0x400FFE);
+    char tempread;
+    fin.get(tempread);
+    outputFile.put(tempread);
 
     temp++;
     fin.close();
@@ -222,13 +240,21 @@ if(temp < fileNumber)
     sizetemp = fin.tellg();
 
     cout << "\n - Image file size: 0x" << std::hex << sizetemp << " written!";
-    cout << "\n - Image length written in address: 0x" << std::hex << (addrtable[temp] - 4) << endl;
+    cout << "\n - Image length written in address: 0x" << std::hex << (addrtable[temp] - 6) << endl;
 
-    outputFile.seekp(addrtable[temp] - 4);
+    outputFile.seekp(addrtable[temp] - 6);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0xff000000) >> 32);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0x00ff0000) >> 16);
     outputFile << std::hex <<(unsigned char)((sizetemp & 0x0000ff00) >> 8);
     outputFile << std::hex <<(unsigned char)(sizetemp & 0x000000ff);
+
+    // Now, write the version number
+    // It is CC2530 version number
+    fin.seekg(0x2000);
+    outputFile.seekp(0x501FFE);
+    char tempread;
+    fin.get(tempread);
+    outputFile.put(tempread);
 
     temp++;
     fin.close();
@@ -414,6 +440,11 @@ if(temp < fileNumber)
     temp++;
     fin.close();
 }
+
+cout << "\nSaving valid flag in address:\n - 0x7FFFFE";
+outputFile.seekp(0x7FFFFE);
+outputFile << std::hex << (unsigned char)(0x99);
+cout << "\n - Value saved: 0x99";
 
 outputFile.close();
 
